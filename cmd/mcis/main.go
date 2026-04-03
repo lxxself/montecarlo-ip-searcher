@@ -370,13 +370,16 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Collect IPs from download-tested results only
+		// Collect IPs from download-tested results only.
+		// We scan all of res.Top (not just the first dlTop entries) so that
+		// sequential mode — which may test beyond rank dlTop to accumulate
+		// dlTop successes — also contributes its successful entries as candidates.
 		type dlResult struct {
 			IP   netip.Addr
 			Mbps float64
 		}
 		var candidates []dlResult
-		for i := 0; i < dlTop && i < len(res.Top); i++ {
+		for i := 0; i < len(res.Top); i++ {
 			r := res.Top[i]
 			if r.DownloadOK {
 				candidates = append(candidates, dlResult{IP: r.IP, Mbps: r.DownloadMbps})
