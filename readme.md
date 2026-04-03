@@ -193,7 +193,7 @@ go run ./cmd/mcis -v --out text --cidr-file ./ipv6cidr.txt --budget 4000 --heads
 | `--dns-provider` | DNS 服务商：`cloudflare` 或 `vercel` |
 | `--dns-token` | API Token（或用环境变量 `CF_API_TOKEN` / `VERCEL_TOKEN`） |
 | `--dns-zone` | Zone ID（Cloudflare）或域名（Vercel），或用环境变量 `CF_ZONE_ID` |
-| `--dns-subdomain` | 子域名前缀（如 `cf` 会创建 `cf.example.com`） |
+| `--dns-subdomain` | 子域名前缀，支持多个并用英文逗号分隔（如 `cf1,cf2,cf3`） |
 | `--dns-upload-count` | 上传 IP 数量（默认与 `--download-top` 相同） |
 
 示例：
@@ -204,9 +204,16 @@ export CF_API_TOKEN="your_token"
 export CF_ZONE_ID="your_zone_id"
 ./mcis --cidr-file ./ipv4cidr.txt --dns-provider cloudflare --dns-subdomain cf -v
 
+# Cloudflare（多个子域名，按顺序与测速后 IP 对应）
+./mcis --cidr-file ./ipv4cidr.txt --dns-provider cloudflare --dns-subdomain cf1,cf2,cf3 -v
+
 # Vercel
 ./mcis --cidr-file ./ipv4cidr.txt --dns-provider vercel --dns-zone example.com --dns-subdomain cf --dns-token YOUR_TOKEN -v
 ```
+
+说明：
+- 当 `--dns-subdomain` 配置多个值时，程序会按顺序一一对应上传：第 1 个子域名对应第 1 个 IP，以此类推。
+- 实际上传条数为 `min(子域名数量, 可上传 IP 数量)`。
 
 ## 自带网段文件
 

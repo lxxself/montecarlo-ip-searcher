@@ -146,7 +146,7 @@ func main() {
 	flag.StringVar(&dnsProvider, "dns-provider", "", "DNS provider for uploading results (cloudflare|vercel)")
 	flag.StringVar(&dnsToken, "dns-token", "", "DNS provider API token (or use CF_API_TOKEN/VERCEL_TOKEN env)")
 	flag.StringVar(&dnsZone, "dns-zone", "", "DNS zone ID (Cloudflare) or domain (Vercel) (or use CF_ZONE_ID env)")
-	flag.StringVar(&dnsSubdomain, "dns-subdomain", "", "Subdomain to update (e.g., 'cf' for cf.example.com)")
+	flag.StringVar(&dnsSubdomain, "dns-subdomain", "", "Subdomain(s) to update, comma-separated (e.g., 'cf' or 'cf1,cf2')")
 	flag.IntVar(&dnsUploadCount, "dns-upload-count", 0, "Number of IPs to upload (default: same as --download-top)")
 	flag.StringVar(&dnsTeamID, "dns-team-id", "", "Vercel Team ID (optional, or use VERCEL_TEAM_ID env)")
 
@@ -334,7 +334,19 @@ func main() {
 
 	// DNS upload
 	if dnsProvider != "" {
-		if dnsSubdomain == "" {
+		parseSubdomainList := func(s string) []string {
+			parts := strings.Split(s, ",")
+			out := make([]string, 0, len(parts))
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if p != "" {
+					out = append(out, p)
+				}
+			}
+			return out
+		}
+		dnsSubdomains := parseSubdomainList(dnsSubdomain)
+		if len(dnsSubdomains) == 0 {
 			fmt.Fprintln(os.Stderr, "error: --dns-subdomain is required when --dns-provider is set")
 			os.Exit(1)
 		}
@@ -392,16 +404,25 @@ func main() {
 		}
 
 		if len(ipsToUpload) > 0 {
+			configN := len(dnsSubdomains)
+			if configN > len(ipsToUpload) {
+				configN = len(ipsToUpload)
+			}
+
 			if verbose {
-				fmt.Fprintf(os.Stderr, "dns: uploading %d IPs to %s (subdomain: %s), sorted by download speed...\n",
-					len(ipsToUpload), provider.Name(), dnsSubdomain)
-				for i, ip := range ipsToUpload {
-					fmt.Fprintf(os.Stderr, "  %d. %s (%.2f Mbps)\n", i+1, ip.String(), candidates[i].Mbps)
+				fmt.Fprintf(os.Stderr, "dns: uploading %d IPs to %s (%d configured subdomain(s)), sorted by download speed...\n",
+					configN, provider.Name(), len(dnsSubdomains))
+				for i := 0; i < configN; i++ {
+					fmt.Fprintf(os.Stderr, "  %d. subdomain=%s ip=%s (%.2f Mbps)\n",
+						i+1, dnsSubdomains[i], ipsToUpload[i].String(), candidates[i].Mbps)
 				}
 			}
-			if err := dns.Upload(ctx, provider, dnsSubdomain, ipsToUpload, verbose); err != nil {
-				fmt.Fprintln(os.Stderr, "dns upload error:", err)
-				os.Exit(1)
+
+			for i := 0; i < configN; i++ {
+				if err := dns.Upload(ctx, provider, dnsSubdomains[i], []netip.Addr{ipsToUpload[i]}, verbose); err != nil {
+					fmt.Fprintf(os.Stderr, "dns upload error (subdomain: %s): %v\n", dnsSubdomains[i], err)
+					os.Exit(1)
+				}
 			}
 		} else {
 			if verbose {
